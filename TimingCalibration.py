@@ -7,6 +7,8 @@ import mplhep
 
 ######## Configurables #########
 
+inputFile = '20kEvents_1V_1ns_Gauss_ch0.csv'
+
 plotHist = True #show histogram of threshold crossings
 plotSpread = True #show distribution of measured delays
 channel = 1 #specify channel used
@@ -86,7 +88,7 @@ def calcTOA(method, pulsex, pulsey, n,  peak = 500, perc = 0.7):
 ################################
 
 print("Loading events...")
-EventsList, numEvents = csvReader('20kEvents_1V_1ns_Gauss_ch0.csv', 20000)
+EventsList, numEvents = csvReader(inputFile, 20000)
 events_used = range(1, numEvents-1) #omit first and last event
 
 #####################################################
