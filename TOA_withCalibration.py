@@ -9,6 +9,18 @@ from matplotlib.ticker import PercentFormatter
 import mplhep
 import os
 
+######## Configurables #########
+inputFile = ''
+
+calibFile0_even = ''
+calibFile0_odd = ''
+calibFile1_even = ''
+calibFile1_odd = ''
+
+Cal = True #True if using calibrated x axis, False if uncalibrated
+
+################################
+
 class Event:
     def __init__(self):
         self.windnum = []
@@ -38,9 +50,19 @@ def csvReader(filename, numEvents):
 
 def calcTOA(method, pulsex, pulsey, n,  peak = 500, perc = 0.7):
 
-    #returns location of threshold crossing using one of two methods:
+    #returns time  of threshold crossing using one of two methods:
+
+    #inputs
+    
     #method = 'fixed' uses a threshold of 300ADC counts
     #method = 'calc' uses a percentage of the calculated max for threshold
+    #pulsex: uncalibrated x axis data of signal
+    #pulsey: y axis data of signal
+    #peak: set maximum used if method = 'fixed'
+    #perc: percentage of peak used to find CFD point
+    #n: number of points to use on each side of closest threshold crossing point for linear interp
+    #ie, n=0 uses 2 points to do the linear interp, n=2 would use 6 points (2+2n)
+
 
     peakLoc = np.argmax(pulsey)
 
@@ -64,16 +86,6 @@ def calcTOA(method, pulsex, pulsey, n,  peak = 500, perc = 0.7):
 
     return TOA
 
-
-def trimGauss(x, y, xl, xr):
-
-    #Trim event so that only pulse is used
-    
-    maxLoc = np.argmax(y)
-    x_trim = x[(maxLoc-xl):(maxLoc+xr)]
-    y_trim = y[(maxLoc-xl):(maxLoc+xr)]
-
-    return x_trim, y_trim
 
 def fixTimeAxis(x, startWin, dtEven, dtOdd):
     totalWindows = int(len(x)/64)
@@ -106,16 +118,14 @@ def fixTimeAxis(x, startWin, dtEven, dtOdd):
             
             
         
-#EventsList, numEvents = csvReader('2000Events_newCables.csv', 500)
-EventsList, numEvents = csvReader('PulsePulse_Gauss_1kEvents.csv', 1000)
-ch_0dtEven = np.genfromtxt('Channel0_EvenWindowCalibration', delimiter=',', skip_header=1)
-ch_0dtOdd = np.genfromtxt('Channel0_OddWindowCalibration', delimiter = ',', skip_header=1)
-ch_3dtEven = np.genfromtxt('Channel3_EvenWindowCalibration', delimiter=',', skip_header=1)
-ch_3dtOdd = np.genfromtxt('Channel3_OddWindowCalibration', delimiter = ',', skip_header=1)
+EventsList, numEvents = csvReader(inputFile, 1000)
+ch_0dtEven = np.genfromtxt(calibFile0_even, delimiter=',', skip_header=1)
+ch_0dtOdd = np.genfromtxt(calibFile0_odd, delimiter = ',', skip_header=1)
+ch_3dtEven = np.genfromtxt(calibFile1_even, delimiter=',', skip_header=1)
+ch_3dtOdd = np.genfromtxt(calibFile1_even, delimiter = ',', skip_header=1)
 
 
 TOA_list = []
-Cal = False
 
 for i in range(1, numEvents-1):
     startWindow = EventsList[i].windnum[0]

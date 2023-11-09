@@ -72,11 +72,10 @@ def calcTOA(method, pulsex, pulsey, n,  peak = 500, perc = 0.7):
 
     
 
-    indexRight = np.searchsorted(pulsey[:peakLoc], percPeak) + n 
-    indexLeft = indexRight - 1 - n
-
-    x_linear = pulsex[indexLeft:indexRight]
-    y_linear = pulsey[indexLeft:indexRight]
+    indexRight = np.searchsorted(pulsey[:peakLoc], percPeak)  
+    indexLeft = indexRight - 1 
+    x_linear = pulsex[(indexLeft-n):(indexRight+n+1)]
+    y_linear = pulsey[(indexLeft-n):(indexRight+n+1)]
 
     slope, yintercept = np.polyfit(x_linear, y_linear, 1)
     TOA = (percPeak-yintercept)/slope
