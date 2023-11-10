@@ -93,11 +93,12 @@ events_used = range(1, numEvents-1) #omit first and last event
 #####################################################
 #Find Sample Crossings for each event, fill histogram
 #####################################################
-
+TOA = []
+dtOdd = np.zeros(64, dtype = int)
+dtEven = np.zeros(64, dtype = int)
 
 for i in events_used:
     x, y, windnum = EventsList[i].time, EventsList[i].data_ch0, EventsList[i].windnum
-    x, y = trimGauss(x, y, 50, 50)
     TOA = calcTOA('fixed', x, y, 1)
 
     win = windnum[int(TOA)]
