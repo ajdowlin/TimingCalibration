@@ -43,7 +43,7 @@ def csvReader(filename, numEvents):
         
     return EventsList, numEvents
 
-def calcTOA(method, pulsex, pulsey, n,  peak = 500, perc = 0.7):
+def calcTOA(method, pulsex, pulsey, n,  peak = 800, perc = 0.7):
 
     #returns time  of threshold crossing using one of two methods:
 
@@ -74,8 +74,8 @@ def calcTOA(method, pulsex, pulsey, n,  peak = 500, perc = 0.7):
 
     indexRight = np.searchsorted(pulsey[:peakLoc], percPeak)  
     indexLeft = indexRight - 1 
-    x_linear = pulsex[(indexLeft-n):(indexRight+n+1)]
-    y_linear = pulsey[(indexLeft-n):(indexRight+n+1)]
+    x_linear = pulsex[(indexLeft-n):(indexRight+n)]
+    y_linear = pulsey[(indexLeft-n):(indexRight+n)]
 
     slope, yintercept = np.polyfit(x_linear, y_linear, 1)
     TOA = (percPeak-yintercept)/slope
@@ -93,14 +93,20 @@ events_used = range(1, numEvents-1) #omit first and last event
 #####################################################
 #Find Sample Crossings for each event, fill histogram
 #####################################################
+
 TOA = []
 dtOdd = np.zeros(64, dtype = int)
 dtEven = np.zeros(64, dtype = int)
 
 for i in events_used:
+    if%10000 == 0:
+        print("Finding threshold cossing for event ", i)
     x, y, windnum = EventsList[i].time, EventsList[i].data_ch0, EventsList[i].windnum
     TOA = calcTOA('fixed', x, y, 1)
 
+    if TOA > len(windnum): ## omit some code-breaking outliers
+        continue
+    
     win = windnum[int(TOA)]
     sample_num = TOA%64
     
