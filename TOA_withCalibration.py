@@ -10,14 +10,18 @@ import mplhep
 import os
 
 ######## Configurables #########
-inputFile = ''
+inputFile = './PulsePulseCh23_1V_6kEvents.csv'
 
-calibFile0_even = ''
-calibFile0_odd = ''
-calibFile1_even = ''
-calibFile1_odd = ''
+calibFilea_even = './Channel2_50158Events_EvenWindowCalib.csv'
+calibFilea_odd = './Channel2_49840Events_OddWindowCalib.csv'
+calibFileb_even = './Channel3_49913Events_EvenWindowCalib.csv'
+calibFileb_odd = './Channel3_50085Events_OddWindowCalib.csv'
 
 Cal = True #True if using calibrated x axis, False if uncalibrated
+ClockSynced = False #True if not using relative measurement (use calibFilea)
+TOA_low = 1000 #Omit events with too low of TOA
+TOA_high = 10000 #Omit events with too high of TOA
+numEvents = 5000 #Number of Events to use
 
 ################################
 
@@ -25,8 +29,8 @@ class Event:
     def __init__(self):
         self.windnum = []
         self.time = []
-        self.data_ch0 = []
-        self.data_ch3 = []
+        self.data_cha = []
+        self.data_chb = []
         
 def csvReader(filename, numEvents):
 
@@ -40,13 +44,31 @@ def csvReader(filename, numEvents):
         event_no=int(fullCSV[row][1])
         EventsList[event_no].windnum.append(fullCSV[row][2])
         EventsList[event_no].time.append(fullCSV[row][3])
-        EventsList[event_no].data_ch0.append(fullCSV[row][4])
-        EventsList[event_no].data_ch3.append(fullCSV[row][5])
+        EventsList[event_no].data_cha.append(fullCSV[row][4])
+        EventsList[event_no].data_chb.append(fullCSV[row][5])
         row = row + 1
         if event_no%1000 == 0 and fullCSV[row][3] == 0:
             print("Reading Event ", event_no)
         
-    return EventsList, numEvents
+    return EventsList
+
+def csvReader_sync(filename, numEvents):
+    
+    fullCSV = np.genfromtxt(filename, delimiter=',', skip_header=1)
+    EventsList = [Event() for _ in range(numEvents)]
+    event_no = 0
+    row = 0                  
+    while event_no < numEvents-1:
+        event_no=int(fullCSV[row][1])
+        EventsList[event_no].windnum.append(fullCSV[row][2])
+        EventsList[event_no].time.append(fullCSV[row][3])
+        EventsList[event_no].data_cha.append(fullCSV[row][4])
+        row = row + 1
+        if event_no%1000 == 0 and fullCSV[row][3] == 0:
+            print("Reading Event ", event_no)
+        
+    return EventsList
+    
 
 def calcTOA(method, pulsex, pulsey, n,  peak = 500, perc = 0.7):
 
@@ -71,8 +93,8 @@ def calcTOA(method, pulsex, pulsey, n,  peak = 500, perc = 0.7):
     if method == 'calc':
         peakLeft = peakLoc - 2
         peakRight = peakLoc + 3
-        peak = np.average(pulsey[peakLeft:peakRight])
-        percPeak = peak * perc
+        calcpeak = np.average(pulsey[peakLeft:peakRight])
+        percPeak = calcpeak * perc
 
     
 
@@ -115,47 +137,78 @@ def fixTimeAxis(x, startWin, dtEven, dtOdd):
 
                 
     return x_new
+
+
             
+if ClockSynced == False:
+
+    ch_adtEven = np.genfromtxt(calibFilea_even, delimiter=',', skip_header=1)
+    ch_adtOdd = np.genfromtxt(calibFilea_odd, delimiter = ',', skip_header=1)
+    ch_bdtEven = np.genfromtxt(calibFileb_even, delimiter=',', skip_header=1)
+    ch_bdtOdd = np.genfromtxt(calibFileb_odd, delimiter = ',', skip_header=1)
+    
+    EventsList = csvReader(inputFile, numEvents)
+
+    TOA_list = []
+    
+    for i in range(1, numEvents-1):
+        startWindow = EventsList[i].windnum[0]
+        x_old =  EventsList[i].time
+        
+        y_cha = EventsList[i].data_cha
+        y_chb = EventsList[i].data_chb
+        
+        x_new_cha = fixTimeAxis(x_old, startWindow, ch_adtEven, ch_adtOdd)
+        x_new_chb = fixTimeAxis(x_old, startWindow, ch_bdtEven, ch_bdtOdd)
+        
+        
+        if Cal == True:
             
+            TOA_cha = calcTOA('calc', x_new_cha, y_cha, 2,  peak = 400, perc = 0.71)
+            TOA_chb = calcTOA('calc', x_new_chb, y_chb, 2,  peak = 400, perc = 0.71)
+            
+        if Cal == False:
+                
+            TOA_cha = calcTOA('calc', np.asarray(x_old)*100, y_cha, 2,  peak = 400, perc = 0.71)
+            TOA_chb = calcTOA('calc', np.asarray(x_old)*100, y_chb, 2,  peak = 400, perc = 0.71)
+
         
-EventsList, numEvents = csvReader(inputFile, 1000)
-ch_0dtEven = np.genfromtxt(calibFile0_even, delimiter=',', skip_header=1)
-ch_0dtOdd = np.genfromtxt(calibFile0_odd, delimiter = ',', skip_header=1)
-ch_3dtEven = np.genfromtxt(calibFile1_even, delimiter=',', skip_header=1)
-ch_3dtOdd = np.genfromtxt(calibFile1_even, delimiter = ',', skip_header=1)
+
+        TOA = abs(TOA_cha - TOA_chb)
+        if TOA > TOA_low and TOA < TOA_high:
+            TOA_list.append(abs(TOA))
+            
 
 
-TOA_list = []
+if ClockSynced == True:
 
-for i in range(1, numEvents-1):
-    startWindow = EventsList[i].windnum[0]
-    x_old =  EventsList[i].time
+    ch_adtEven = np.genfromtxt(calibFilea_even, delimiter=',', skip_header=1)
+    ch_adtOdd = np.genfromtxt(calibFilea_odd, delimiter = ',', skip_header=1)
+
+    EventsList = csvReader_sync(inputFile, numEvents)
+
+    TOA_list = []
     
-    y_ch0 = EventsList[i].data_ch0
-    y_ch3 = EventsList[i].data_ch3
+    for i in range(1, numEvents-1):
+        startWindow = EventsList[i].windnum[0]
+        x_old =  EventsList[i].time
+        
+        y_cha = EventsList[i].data_cha
+        
+        x_new_cha = fixTimeAxis(x_old, startWindow, ch_adtEven, ch_adtOdd)
+        
+        
+        if Cal == True:
+            
+            TOA_cha = calcTOA('calc', x_new_cha, y_cha, 2,  peak = 400, perc = 0.71)
+            
+        if Cal == False:
+                
+            TOA_cha = calcTOA('calc', np.asarray(x_old)*100, y_cha, 2,  peak = 400, perc = 0.71)
+
+        if abs(TOA_cha) > TOA_low and abs(TOA_cha) < TOA_high:
+            TOA_list.append(abs(TOA_cha))
     
-    x_new_ch0 = fixTimeAxis(x_old, startWindow, ch_0dtEven, ch_0dtOdd)
-    x_new_ch3 = fixTimeAxis(x_old, startWindow, ch_3dtEven, ch_3dtOdd)
-
-    #x_ch0, y_ch0 = trimGauss(x_new_ch0, y_ch0, 30, 30)
-    #x_ch3, y_ch3 = trimGauss(x_new_ch3, y_ch3, 30, 30)
-
-    if Cal == True:
-    
-        TOA_ch0 = calcTOA('calc', x_new_ch0, y_ch0, 2,  peak = 400, perc = 0.71)
-        TOA_ch3 = calcTOA('calc', x_new_ch0, y_ch3, 2,  peak = 400, perc = 0.71)
-        
-    if Cal == False:
-        
-        TOA_ch0 = calcTOA('calc', np.asarray(x_old)*100, y_ch0, 2,  peak = 400, perc = 0.71)
-        TOA_ch3 = calcTOA('calc', np.asarray(x_old)*100, y_ch3, 2,  peak = 400, perc = 0.71)
-
-        
-
-    TOA = (TOA_ch0 - TOA_ch3)
-    TOA_list.append(TOA)
-    #if TOA > 10 and TOA < 13:
-     #   TOA_list.append(TOA)
 
 print("TOA Mean: ", np.mean(TOA_list))
 print("TOA STD: ", np.std(TOA_list))
