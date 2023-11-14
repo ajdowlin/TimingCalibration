@@ -101,7 +101,7 @@ dtOdd = np.zeros(64, dtype = int)
 dtEven = np.zeros(64, dtype = int)
 
 for i in events_used:
-    if%10000 == 0:
+    if i%10000 == 0:
         print("Finding threshold cossing for event ", i)
     x, y, windnum = EventsList[i].time, EventsList[i].data_ch0, EventsList[i].windnum
     TOA = calcTOA('fixed', x, y, 1)
@@ -120,8 +120,8 @@ for i in events_used:
     else:
         dtOdd[int(sample_num)] = dtOdd[int(sample_num)] + 1
 
-lenOdd = len(dtOdd)
-lenEven = len(dtEven)
+lenOdd = np.sum(dtOdd)
+lenEven = np.sum(dtEven)
 
 print("Number of samples located in Odd windows: ", lenOdd)
 print("Number of samples located in Even windows: ", lenEven)
@@ -139,8 +139,8 @@ if Exaggerate == True:
     dtEven = dtEven - toRemove_even
     dtOdd = dtOdd - toRemove_odd
 
-dtOdd_scale = (dtOdd/len(dtOdd)) * 6400
-dtEven_scale = (dtEven/len(dtEven)) * 6400
+dtOdd_scale = (dtOdd/np.sum(dtOdd)) * 6400
+dtEven_scale = (dtEven/np.sum(dtEven)) * 6400
 
 dtOdd_DF = pd.DataFrame(dtOdd_scale)
 dtEven_DF = pd.DataFrame(dtEven_scale)
@@ -171,7 +171,7 @@ if output == True:
         outString_odd = outString_odd + "_" + str(exaggerate_percent) + "exaggerate"
         
         
-    dtEven_DF.to_csv(outString_even)
-    dtOdd_DF.to_csv(outString_odd)
+    dtEven_DF.to_csv(outString_even + ".csv")
+    dtOdd_DF.to_csv(outString_odd + ".csv")
     
 
