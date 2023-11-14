@@ -11,8 +11,10 @@ inputFile = '20kEvents_1V_1ns_Gauss_ch0.csv'
 
 plotHist = True #show histogram of threshold crossings
 plotSpread = True #show distribution of measured delays
+Exaggerate = True #True to 'exaggerate' measured time intervals
+exaggerate_percent = 0.1 #how much to 'exaggerate' measured time intervals if Exaggerate = True
+output = True #if true, creates csv output file
 channel = 1 #specify channel used
-output = True #if true, creates csv output file 
 
 ################################
 
@@ -118,16 +120,27 @@ for i in events_used:
     else:
         dtOdd[int(sample_num)] = dtOdd[int(sample_num)] + 1
 
-lenOdd = np.sum(dtOdd)
-lenEven = np.sum(dtEven)
+lenOdd = len(dtOdd)
+lenEven = len(dtEven)
 
 print("Number of samples located in Odd windows: ", lenOdd)
 print("Number of samples located in Even windows: ", lenEven)
 
 #Scale histogram to known length of window
 
-dtOdd_scale = (dtOdd/lenOdd) * 6400
-dtEven_scale = (dtEven/lenEven) * 6400
+
+if Exaggerate == True:
+    min_crossings_even = np.min(dtEven)
+    min_crossings_odd = np.min(dtOdd)
+
+    toRemove_even = np.min(dtEven)*exaggerate_percent
+    toRemove_odd = np.min(dtOdd)*exaggerate_percent
+
+    dtEven = dtEven - toRemove_even
+    dtOdd = dtOdd - toRemove_odd
+
+dtOdd_scale = (dtOdd/len(dtOdd)) * 6400
+dtEven_scale = (dtEven/len(dtEven)) * 6400
 
 dtOdd_DF = pd.DataFrame(dtOdd_scale)
 dtEven_DF = pd.DataFrame(dtEven_scale)
@@ -151,9 +164,13 @@ if plotSpread == True:
     plt.show()
 
 if output == True:
-    outString_even = "Channel" + str(channel) + "_" + str(lenEven) + "Events_EvenWindowCalib"
-    outString_odd = "Channel" + str(channel) + "_" + str(lenOdd) + "Events_EvenWindowCalib"
-
+    outString_even = "Ch" + str(channel) + "_" + str(lenEven) + "Events_EvenWinCalib"
+    outString_odd = "Ch" + str(channel) + "_" + str(lenOdd) + "Events_OddWinCalib"
+    if Exaggerate  == True:
+        outString_even = outString_even + "_" + str(exaggerate_percent) + "exaggerate"
+        outString_odd = outString_odd + "_" + str(exaggerate_percent) + "exaggerate"
+        
+        
     dtEven_DF.to_csv(outString_even)
     dtOdd_DF.to_csv(outString_odd)
     
