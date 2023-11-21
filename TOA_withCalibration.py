@@ -12,16 +12,18 @@ import os
 ######## Configurables #########
 inputFile = './PulsePulseCh23_1V_6kEvents.csv'
 
-calibFilea_even = './Channel2_50158Events_EvenWindowCalib.csv'
-calibFilea_odd = './Channel2_49840Events_OddWindowCalib.csv'
-calibFileb_even = './Channel3_49913Events_EvenWindowCalib.csv'
-calibFileb_odd = './Channel3_50085Events_OddWindowCalib.csv'
+calibFilea_even = './Calibrations/Ch2_50158Events_EvenWinCalib.csv'
+calibFilea_odd =  './Calibrations/Ch2_49840Events_OddWinCalib.csv'
+calibFileb_even = './Calibrations/Ch3_49913Events_EvenWinCalib.csv'
+calibFileb_odd = './Calibrations/Ch3_50085Events_OddWinCalib.csv'
 
-Cal = True #True if using calibrated x axis, False if uncalibrated
+Cal = False #True if using calibrated x axis, False if uncalibrated
 ClockSynced = False #True if not using relative measurement (use calibFilea)
-TOA_low = 1000 #Omit events with too low of TOA
+Fit = True
+TOA_low = 1200 #Omit events with too low of TOA
 TOA_high = 10000 #Omit events with too high of TOA
 numEvents = 5000 #Number of Events to use
+
 
 ################################
 
@@ -72,13 +74,13 @@ def csvReader_sync(filename, numEvents):
 
 def calcTOA(method, pulsex, pulsey, n,  peak = 500, perc = 0.7):
 
-    #returns time  of threshold crossing using one of two methods:
+    #returns time  of threshold crossing using one of two methods
 
     #inputs
     
     #method = 'fixed' uses a threshold of 300ADC counts
     #method = 'calc' uses a percentage of the calculated max for threshold
-    #pulsex: uncalibrated x axis data of signal
+    #pulsex: x axis data of signal
     #pulsey: y axis data of signal
     #peak: set maximum used if method = 'fixed'
     #perc: percentage of peak used to find CFD point
@@ -108,6 +110,37 @@ def calcTOA(method, pulsex, pulsey, n,  peak = 500, perc = 0.7):
 
     return TOA
 
+def fitTOA(pulsex, pulsey, numLeft, numRight):
+    #returns TOA by fitting pulse to gaussian
+
+    #inputs
+    #pulsex: x axis data of signal
+    #pulsey: y axis data of signal
+    #numLeft: Number of points left of peak to fit
+    #numRight: Number of points right of peak to fit
+
+    peakLoc = np.argmax(pulsey)
+    x_trim = pulsex[peakLoc - numLeft:peakLoc + numRight]
+    y_trim = pulsey[peakLoc - numLeft:peakLoc + numRight]
+
+    peakLoc = np.argmax(y_trim)
+    maxADC = np.max(y_trim)
+    peakTime = x_trim[peakLoc]
+
+    
+    c = cost.LeastSquares(x_trim, y_trim, yerror = np.ones(np.asarray(x_trim).shape), model = Gaussian)
+    m = Minuit(c, A = maxADC, x0 = peakLoc, sigma = 5)
+    m.limits["A"] = (maxADC*0.5, maxADC*2)
+    m.limits["x0"] = (peakTime-500, peakTime+500)
+    m.limits["sigma"] = (100, 2000)
+
+    m.migrad()
+    m.hesse()
+
+    return m
+    
+def Gaussian(x, sigma, x0, A):
+        return A*np.exp(-((x-x0)**2)/(sigma**2))
 
 def fixTimeAxis(x, startWin, dtEven, dtOdd):
     totalWindows = int(len(x)/64)
@@ -160,18 +193,28 @@ if ClockSynced == False:
         
         x_new_cha = fixTimeAxis(x_old, startWindow, ch_adtEven, ch_adtOdd)
         x_new_chb = fixTimeAxis(x_old, startWindow, ch_bdtEven, ch_bdtOdd)
-        
-        
-        if Cal == True:
-            
-            TOA_cha = calcTOA('calc', x_new_cha, y_cha, 2,  peak = 400, perc = 0.71)
-            TOA_chb = calcTOA('calc', x_new_chb, y_chb, 2,  peak = 400, perc = 0.71)
-            
-        if Cal == False:
-                
-            TOA_cha = calcTOA('calc', np.asarray(x_old)*100, y_cha, 2,  peak = 400, perc = 0.71)
-            TOA_chb = calcTOA('calc', np.asarray(x_old)*100, y_chb, 2,  peak = 400, perc = 0.71)
 
+        if Fit == True:
+            
+            ma = fitTOA(x_new_cha, y_cha, 18, 18)
+            mb = fitTOA(x_new_chb, y_chb, 18, 18)
+
+            TOA_cha = ma.values["x0"]
+            TOA_chb = mb.values["x0"]
+    
+            
+        else:
+            if Cal == True:
+            
+                TOA_cha = calcTOA('calc', x_new_cha, y_cha, 2,  peak = 400, perc = 0.71)
+                TOA_chb = calcTOA('calc', x_new_chb, y_chb, 2,  peak = 400, perc = 0.71)
+            
+            if Cal == False:
+                
+                TOA_cha = calcTOA('calc', np.asarray(x_old)*100, y_cha, 2,  peak = 400, perc = 0.71)
+                TOA_chb = calcTOA('calc', np.asarray(x_old)*100, y_chb, 2,  peak = 400, perc = 0.71)
+
+        
         
 
         TOA = abs(TOA_cha - TOA_chb)
@@ -206,8 +249,8 @@ if ClockSynced == True:
                 
             TOA_cha = calcTOA('calc', np.asarray(x_old)*100, y_cha, 2,  peak = 400, perc = 0.71)
 
-        if abs(TOA_cha) > TOA_low and abs(TOA_cha) < TOA_high:
-            TOA_list.append(abs(TOA_cha))
+        #if abs(TOA_cha) > TOA_low and abs(TOA_cha) < TOA_high:
+        TOA_list.append(abs(TOA_cha))
     
 
 print("TOA Mean: ", np.mean(TOA_list))
@@ -217,7 +260,7 @@ print("TOA STD: ", np.std(TOA_list))
 mplhep.style.use("LHCb2")
 fig, axes = plt.subplots()
 axes.set_xlabel("ps", loc = 'center', fontsize = 20)
-#axes.plot(EventsList[62].time, EventsList[62].data_ch3)
+#axes.plot(EventsList[10].time, EventsList[62].data_cha)
 #axes.plot(EventsList[62].time, EventsList[62].data_ch0)
 axes.hist(np.asarray(TOA_list), 50)
 fig.set_size_inches(10,7)
